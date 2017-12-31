@@ -1,0 +1,410 @@
+<!--#include virtual="header.html" -->
+
+<body>
+ 
+<h1 class="title">Project 1 - WordNet</h1>
+<center>
+<b>Due Wednesday, June 8, 2016 11:59pm</b><br>
+</center>
+
+<p><a href="http://wordnet.princeton.edu/">WordNet</a> is a semantic lexicon for the English language that 
+is used extensively by computational linguists and cognitive scientists. WordNet groups words into sets of 
+synonyms called <em>synsets</em> and  describes semantic relationships between them. One such relationship 
+is the <em>is-a</em> relationship, which connects a <em>hyponym</em> (more specific synset) to a 
+<em>hypernym</em> (more general synset). For example, a <em>plant organ</em> is a hypernym to <em>plant 
+root</em> and <em>plant root</em> is a hypernym to <em>carrot</em>. </p>
+
+<!-- ======================================== -->
+<h2>Getting Started</h2>
+Download the following zip 
+archive <a href="p1.zip">p1.zip</a>.  It should include 
+the following files:
+<ul>
+  <li>Your Ruby program - <a href="wordnet.rb">wordnet.rb</a>
+  <li>Submission scripts
+    <ul>
+      <li> <a href="submit.jar">submit.jar</a>
+      <li> <a href=".submit">.submit</a> (Your OS may prevent you from seeing this file 
+        because it believes it is a system file)
+      <li> <a href="submit.rb">submit.rb</a>      
+    </ul>  
+</ul>
+<p>To download p1.zip on grace, execute</p>
+<p>wget www.cs.umd.edu/class/summer2016/cmsc330/projects/p1/p1.zip</p>
+<p><b>The WordNet DAG</b>.
+  Your first task is to build the WordNet graph: each vertex <tt>v</tt> is a non-negative integer that represents a synset, and each directed edge <tt>v-&gt;w</tt> 
+  represents that <code>w</code> is a hypernym of <code>v</code>. The graph is directed and acyclic (DAG), though not necessarily a tree since each synset can have 
+  several hypernyms. A small subgraph of the WordNet graph is illustrated below. </p>
+
+<img src="wordnet-fig1.png" width="699"  alt="">
+<p> We now describe the two types of data files that you will use to create the WordNet digraph. The descriptions lay out the structures of valid input files.
+<ul>
+  <li><em>List of noun synsets:</em> The synsets file (for example <code>synsets.txt</code>) lists all the synsets in WordNet. A synset is a list of nouns that
+    share the same meaning. In the file, the first field is the synset id (an integer) and the second field is the synset, which will have its nouns delimited 
+    by commas. The nouns will not contain commas or any whitespace. In the real WordNet, there would normally be a third field which is the synset's dictionary 
+    definition (or <em>gloss</em>); however, for the purposes of this project, the definitions are omitted. For example, the following line
+    
+    <pre>id: 45 synset: AND_circuit,AND_gate</pre>
+    
+    means that the synset whose elements are <tt>AND_circuit</tt> and <tt>AND_gate</tt> has an id number of <tt>45</tt>,
+    and if the gloss were included, it would be <tt>"a circuit in a computer that fires only when all of its inputs fire."</tt></li>
+  </ul>
+</br>
+
+<ul>
+  <li><em>List of hypernyms:</em> The hypernyms file (for example <tt>hypernyms.txt</tt>) contains the hypernym relationships:
+    The first field is a synset id; the second field is the IDs of the synset's hypernyms, delimited by commas. For example, the following line
+    
+    <pre>from: 171 to: 22798,57458 </pre>
+    <p> means that the the synset <tt>171</tt> (<tt>"Actifed"</tt>) has 2 hypernyms: <tt>22798</tt> (<tt>"antihistamine"</tt>) and <tt>57458</tt> (<tt>"nasal_decongestant"</tt>),
+      representing that Actifed is both an antihistamine and a nasal decongestant.
+      The synsets are obtained from the corresponding lines in the file <tt>synsets.txt</tt>. </p>
+    
+ <pre>id: 171 synset: Actifed
+    id: 22798 synset: antihistamine
+    id: 57458 synset: nasal_decongestant
+          </pre>
+    
+  </li>
+  <li><strong>A noun can appear in more than one synset. </strong> A noun will appear once for each meaning that the noun has. For example, all of the entries 
+  in synsets.txt that include the noun "word" are listed below. This means that "word" is associated with IDs 37559, 50266, ..., 80886:
+       
+    <pre>id: 37559 synset: discussion,give-and-take,word              (gloss: an exchange of views on some topic; "we had a good discussion"; "we had a word or two about it")
+id: 50266 synset: news,intelligence,tidings,word             (gloss: new information about specific and timely events; "they awaited news of the outcome") 
+id: 60429 synset: parole,word,word_of_honor                  (gloss: a promise; "he gave his word")
+id: 60430 synset: password,watchword,word,parole,countersign (gloss: a secret word or phrase known only to a restricted group; "he forgot the password")
+id: 80883 synset: word                                       (gloss: a unit of language that native speakers can identify; ...; "he hardly said ten words all morning") 
+id: 80884 synset: word                                       (gloss: a brief statement; "he didn't say a word about it")
+id: 80885 synset: word                                       (gloss: a verbal command for action; "when I give the word  charge!") 
+id: 80886 synset: word                                       (gloss: a word is a string of bits stored in computer memory; "large computers use words up to 64 bits long")</pre>
+    
+  </li>
+  <li><strong>A synset's hypernyms are not restricted to being listed on a single line. </strong> They may be split among multiple lines. For example, the hypernyms above may also be represented as follows:
+    
+    <pre>from: 171 to: 22798
+from: 171 to: 57458</pre>
+    
+  </li>  
+</ul>
+
+<h2>Part 1: Graph Construction and Invalid Input Files</h2>
+
+<p>You <strong>may not</strong> assume that synsets and hypernyms files are validly-structured; any files that do not exactly follow the format described above are 
+considered invalid. First, your program will read in the synsets file. If it is invalid, then your program should print <tt>invalid synsets</tt> followed by 
+each invalid line in the order that they appear in; then, the program should promptly exit without doing anything else (the program will not scan the hypernyms 
+file). In the following example, both an invalid synsets file and hypernyms file are provided, but since synsets are read first, the program will exit before 
+scanning the hypernyms:
+    <pre>
+    % ruby wordnet.rb inputs/synsets2.txt inputs/hypernyms2.txt isnoun inputs/isnoun1 
+    invalid synsets 
+    ids: 1 synset: b
+    id: 5    synset: g
+    id: 6synset: e
+    </pre>
+
+<p>Next, your program will read in the hypernyms file. If it is invalid, then your program should print <tt>invalid hypernyms</tt> followed by each invalid line 
+in the order that they appear in; then, the program should promptly exit without doing anything else. In the following example, the synsets file is valid, but 
+the hypernyms file is invalid:</p>
+    <pre>
+    % ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms2.txt isnoun inputs/isnoun1 
+    invalid hypernyms
+    from: z to: 2
+    from:3 to: 5 
+    to: 7 from: 6 
+    </pre>
+
+<p>If both files are valid, then your program will create a WordNet graph with synset nodes and hypernyms edges; how you choose to represent the graph is left 
+to your own discretion.Choose an efficient representation; eventually you will have to work with <tt>synsets.txt</tt> and <tt>hypernyms.txt</tt>, which are large files. 
+Use the other input files as examples, as they are much smaller and easier to work with. You <strong>may</strong> assume that validly-structured input files will 
+always describe valid DAGs. Consequently, each DAG will have a common root, which will be important in Part 3. For example, the WordNet subgraph above has root 
+"event".</p>
+    
+<h2>Part 2:  WordNet Properties</h2>
+
+<p>
+Once the synsets and hypernyms files are read in, your program will compute various properties
+of the words, according to the command (mode) it is given.  Here are
+three simple properties you'll compute: </p>
+
+<p> 1. <strong><tt>isnoun</tt></strong>: If we invoke your script with the mode <tt>isnoun</tt>, your script will take in an input file that contains 
+    a list of words. It should output true if <em>all</em> of the words listed in the input file are nouns in the synsets, 
+    and false otherwise. For example,
+    <pre>
+    % ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt isnoun inputs/isnoun1
+    true
+
+    %ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt isnoun inputs/isnoun2
+    false
+    </pre>
+
+   <p> 2. <strong><tt>nouns</tt></strong>: If we invoke your script with the <tt>nouns</tt> mode, your script should output the number of nouns 
+    in the synsets. The count should also include all instances of duplicate nouns. In the following example, there are 9 nouns, because each instance of "e" is 
+    counted:
+    <pre>
+    % ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt nouns
+    9
+    </pre>
+ 
+    <p>3. <strong><tt>hypernyms</tt></strong>: If we invoke your script with the <tt>edges</tt> mode, your script should print the number of edges in the WordNet 
+    graph you built from the hypernyms. For example, 
+   <pre>
+    % ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt edges
+    9
+    </pre>
+</p>
+<!-- ======================================== --><!-- ======================================== -->
+
+<h2>Part 3:  Length, Ancestor, and Root</h2>
+<p>In this part, you will calculate the shortest ancestral path between nouns. An <em>ancestral path</em> between two IDs <code>v</code> and <code>w</code> in the 
+   graph is a directed path from <code>v</code> to a common ancestor <code>x</code>, together with a directed path from <code>w</code> to the same ancestor <code>x</code>.  
+  <!-- The two paths <code>v --&#62 x</code> and <code> w --&#62 x</code>
+do not share a vertex other than their common ancestor <code>x</code>.
+-->
+  A <em>shortest ancestral path</em>, or <em>SAP</em>, between ID <code>v</code> and ID <code>w</code> is an ancestral path of minimum total length.
+  The common ancestor that participates in the path is called the <em>lowest common ancestor</em>, or <em>LCA</em>, of <code>v</code> and <code>w</code>.
+  In the graph below, one ancestral path between IDs 4 and 6 is of length 3 with common ancestor 5 (4->5 and 6->7->5). However, the SAP between 
+  4 and 6 is of length 2 with common ancestor 7 (4->7 and 6->7). This makes 7 the LCA of 4 and 6.  </p> 
+<img src="wordnet-fig2.png" width="514" height="278" alt=""/>
+<p> Implement the following functions:</p>
+
+<p>1. <strong><tt>length(v, w)</tt></strong>: Let <code>v</code> and <code>w</code> be defined as <strong>sets</strong> of synset IDs. Returns minimum length of 
+    the SAPs between any ID of <code>v</code> and any ID of <code>w</code>. As an example, 
+    
+    <pre>
+    length([1,2],[3,4]) = minimum of length(1,3); length(1,4); length(2,3); and length(2,4)
+    </pre>
+    
+    <p>Returns -1 (which represents Infinity) instead if no SAP exists between any ID of <code>v</code> and any ID of <code>w</code>. Recount that the graphs 
+    we provide you each have a common root, which means that every pair of IDs in the graph will always contain at least 1 common ancestor. Thus, -1 is 
+    only ever returned when <em>all</em> of the IDs in <code>v</code> and <code>w</code> are not contained in the graph. For example, 
+    
+    <pre>
+    % ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt length inputs/length1
+    3
+
+    %ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt length inputs/length4
+    -1
+    </pre>
+
+    <p>2. <strong><tt>ancestor(v, w)</tt></strong>: Let <code>v</code> and <code>w</code> be defined as above. Returns synset ID of the LCA of the minimum-length 
+    SAP between any ID of <code>v</code> and any ID of <code>w</code>. If there are multiple LCAs resulting from equal-length SAPS, return all of them in a 
+    string that is sorted and space-delimited. Returns -1 if no SAP exists. For example, 
+
+    <pre>
+    %ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt ancestor inputs/ancestor1
+    3
+    
+    %ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt ancestor inputs/ancestor4
+    -1 
+    </pre>
+
+   <p> 3. <strong><tt>root(v,w)</tt></strong>: Let <code>v</code> and <code>w</code> each be a <strong>noun</strong>. Let <code>v'</code> and <code>w'</code> 
+    represent the synset IDs associated with the nouns <code>v</code> and <code>w</code> respectively. Returns all of the nouns contained in the LCA(s) of 
+    <code>v'</code> and <code>w'</code> in a sorted and space-delimited string, regardless of duplicity. Note that <code>v'</code> and <code>w'</code> may have 
+    multiple LCAs, in which case all of the nouns in the LCAs shoud be returned. Returns -1 instead if no LCA exists. For example,
+      
+    <pre> 
+    %ruby wordnet.rb inputs/synsets1.txt inputs/hypernyms1.txt root inputs/root2
+    g h
+    </pre>
+</p>
+
+<h2>Part 4: Outcast Detection</h2>
+  <p>Semantic relatedness refers to the degree to which two concepts are related. Measuring semantic 
+  relatedness is a challenging problem. For example, most of us agree that George Bush and John Kennedy 
+  (two US presidents) are more related than are George Bush and chimpanzee (two primates). However, not
+   most of us agree that George Bush and Eric Arthur Blair are related concepts. But if one is aware that 
+   George Bush and Eric Arthur Blair (aka George Orwell) are both communicators, then it becomes clear 
+   that the two concepts might be related. </p>
+  <p>We estimate the semantic relatedness of nouns A and B, denoted dist(A, B), as follows: If either A or B is not a WordNet noun, the distance is Infinity.
+  Otherwise, the distance is the minimum length of the SAPs between any ID associated with A and any ID associated with B.Given a list of nouns A1, A2, ..., An, 
+  which noun is the least related to the others? To identify the outcast, for each noun compute the sum of the squares of the distance between the noun and every other one. 
+  For instance, the sum for noun Ai (denoted as di) is calculated as follows: </p>
+  <p>(di)<sup>2</sup> = (dist(Ai, A1))<sup>2</sup> + (dist(Ai, A2))<sup>2</sup> + ... + (dist(Ai, An))<sup>2</sup>. The outcast(s) is At for which dt is the maximum.</p>
+  <p>Implement a function outcast(nouns) that returns the outcast noun(s) in the input file as described above. If there are multiple outcasts, then regardless 
+  of duplicity, return all of them in a sorted and space-delimited string. For example,</p>
+  
+  <pre>
+  %ruby wordnet.rb inputs/synsets.txt inputs/hypernyms.txt outcast inputs/outcast3
+  table
+  </pre>
+ 
+  <p>Among the nouns &quot;horse zebra cat bear table&quot; in the input file <tt>outcast3.txt</tt>, &quot;table&quot; is the outcast.</p>
+  
+  <h2>Hints and Tips</h2>
+  <ul>
+<li>
+  <p>To run public tests, execute &quot;ruby tests/test_file_name&quot;. For example </p>
+  <pre>ruby tests/public_length1.rb</pre>
+  <p>You can also diff your output with the expected output in outputs folder.</p>
+<li>This project is non-trivial, in part because you will probably be
+  writing in Ruby for the first time, so be sure to start right away,
+  and come to office hours if you get stuck.
+<li>
+  Follow good program development practices:  Test each part of your
+  program as you develop it.  Start developing a simplified solution and
+  then add features as you are sure that earlier parts work.  Test early
+  and often, and re-run your tests as you add new features to be sure
+  you didn't break anything.
+  a
+<li>
+Before you get too far, review the Ruby class reference, and look for
+classes and methods that might be helpful.  For example, the Array and
+Hash classes will come in handy.  Finding the right class might save
+you a lot of time and make your program easier to develop.
+  
+<li>
+If you write methods that should return a true or false value,
+remember that a Ruby 0 is not false.
+
+<li>
+Ruby has an integrated debugger, which can be invoked by running Ruby
+with the -rdebug option.  The debugger's <tt>p</tt> command may be
+helpful for viewing the values of variables and data structures.  The
+
+<tt>var local</tt> command prints all of the local variables at the
+current point of exclusion.  The chapter 
+<a href = "http://www.ruby-doc.org/docs/ProgrammingRuby/html/trouble.html">When Trouble Strikes</a> of The
+Pragmatic Programmer's Guide discusses the debugger in more detail.
+
+<li>
+To thoroughly debug your program, you will need to
+construct test cases of your own, based on the project description. If
+you need help with this, please come to TA office hours.
+
+<li>
+Remember to save your work frequently---a power failure, network
+failure, or problem with a phone connection could cost many hours of
+lost work.  For the same reason, submit your project often.  You can
+retrieve previously-submitted versions of your program from the submit
+server should disaster strike.
+
+<li>
+Be sure you have read and understand the project grading policies in
+the course syllabus.  Do this well in advance of the project due date.
+</ul>
+
+<!-- ======================================== -->
+<h2>Project Submission</h2>
+
+<p>You should submit a file <tt>wordnet.rb</tt> containing your solution.
+You may submit other files, but they will be ignored during grading.
+We will run your solution by invoking:</p>
+
+<tt>ruby wordnet.rb &lt;synset file&gt; &lt;hypernym file&gt; &lt;<i>mode</i>&gt; &lt;input <i>file</i>&gt;</tt>
+
+<p>
+where <tt>&lt;mode&gt;</tt> describes what the tool should do (see
+above), and <tt>&lt;input&gt;</tt> names the file containing the
+input data.  </p>
+
+<p>
+<b>Be sure to follow the project description exactly.</b> Your solution
+will be graded automatically, and so any deviation from the
+specification will result in losing points. In particular, if you have
+any debugging output in your program, be sure to turn it off before
+you submit your program.
+</p>
+
+You can submit your project in two ways:
+
+<ul>
+<li>
+Submit your wordnet.rb file directly to the 
+<a href="http://submit.cs.umd.edu">submit server</a> 
+by clicking on the submit link in the column "web submission".
+
+<p>
+<img src="submit1.jpg">
+<p>
+
+Next, use the submit dialog to submit your input.rb file directly.
+
+<p>
+<img src="submit2.jpg">
+<p>
+
+Select your file using the "Browse" button, 
+then press the "Submit project!" button.  
+You <b>do not</b> need to put it in a Jar or Zip file.
+
+<p>
+<li>
+Submit directly by executing a Java program on a computer
+with Java and network access.  Included in p1.zip 
+are the following files:
+
+<p>
+<ul>
+<li> <a href="submit.jar">submit.jar</a>
+<li> <a href=".submit">.submit</a> (Your OS may prevent you from seeing this file because it believes it is a system file)
+
+<li> <a href="submit.rb">submit.rb</a>
+</ul>
+<p>
+
+The files should be in the directory containing your project. 
+From there you can either execute submit.rb, or type the 
+following command directly:
+
+<center>
+<tt>
+java -jar submit.jar
+</tt>
+</center>
+<p>
+
+The first time you submit this way
+you will be asked to enter your directory ID and password. 
+All files in the directory (and its subdirectories) will then be
+put in a jar file and submitted to the submit server.  
+If your submission is successful you will see the message:
+<p> 
+
+<center>
+
+<tt>
+Successful submission #<submission_number> received for project 1
+</tt>
+</center>
+<p>
+
+</ul>
+
+
+<!-- ======================================== -->
+<h2>Academic Integrity</h2>
+
+<p>
+The Campus Senate has adopted a policy asking students to include the
+following statement on each assignment in every course: "I pledge on
+my honor that I have not given or received any unauthorized assistance
+on this assignment."  Consequently your program is requested to
+contain this pledge in a comment near the top.
+
+<p>
+
+Please <b>carefully read</b> the academic honesty section of the
+course syllabus.  <b>Any evidence</b> of impermissible cooperation on
+projects, use of disallowed materials or resources, or unauthorized
+use of computer accounts, <b>will be submitted</b> to the Student
+Honor Council, which could result in an XF for the course, or
+suspension or expulsion from the University.  Be sure you understand
+what you are and what you are not permitted to do in regards to
+academic integrity when it comes to project assignments.  These
+policies apply to all students, and the Student Honor Council does not
+consider lack of knowledge of the policies to be a defense for
+violating them.  Full information is found in the course
+syllabus---please review it at this time.
+
+<h2>Copyright Notice</h2>
+<p>Original project <em> was created by Alina Ene and Kevin Wayne at Princeton University. </em>This course project is copyright of Dr. Anwar Mamat. All rights reserved. Any redistribution or reproduction of part  or all of the contents in any form is prohibited without the express  consent of the author.</p>
+<p></td>
+<tr>
+  <td valign="top">
+  <td valign="top">&nbsp;</td>
+</table>
+
+</body>
+</html>
+
